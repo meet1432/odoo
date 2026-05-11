@@ -81,3 +81,88 @@ class TestName(TransactionCase):
             ('display_name', '=', 'HOHO'),
         ])
         self.assertEqual(variant1, product_search)
+
+    def test_search_display_name_ilike(self):
+    """ilike operator should find product by default_code (cross-table UNION path)."""
+    variant = self.env['product.product'].create({
+        'name': 'Generic Product',
+        'default_code': 'ILIKE_SKU',
+    })
+    result = self.env['product.product'].search([
+        ('display_name', 'ilike', 'ILIKE_SKU'),
+    ])
+    self.assertIn(variant, result)
+
+def test_search_display_name_in_operator(self):
+    """'in' operator should find products matched by name or default_code."""
+    v1 = self.env['product.product'].create({'name': 'Alpha'})
+    v2 = self.env['product.product'].create({
+        'name': 'Unrelated',
+        'default_code': 'BETA_CODE',
+    })
+    result = self.env['product.product'].search([
+        ('display_name', 'in', ['Alpha', 'BETA_CODE']),
+    ])
+    self.assertIn(v1, result)
+    self.assertIn(v2, result)
+
+def test_search_display_name_barcode(self):
+    """ilike operator should find product matching by barcode."""
+    variant = self.env['product.product'].create({
+        'name': 'Some Product',
+        'barcode': '123456789',
+    })
+    result = self.env['product.product'].search([
+        ('display_name', 'ilike', '123456789'),
+    ])
+    self.assertIn(variant, result)
+
+def test_search_display_name_supplier_code(self):
+    """Supplier product code should be searchable via partner_id context."""
+    partner = self.env['res.partner'].create({'name': 'Test Supplier'})
+    template = self.env['product.template'].create({'name': 'Supplied Product'})
+    self.env['product.supplierinfo'].create({
+        'partner_id': partner.id,
+        'product_tmpl_id': template.id,
+        'product_code': 'SUP_CODE',
+    })
+    result = self.env['product.product'].with_context(partner_id=partner.id).search([
+        ('display_name', 'ilike', 'SUP_CODE'),
+    ])
+    self.assertIn(template.product_variant_ids[0], result)
+
+def test_search_display_name_negative_operator(self):
+    """Negative operator should NOT use UNION path — AND logic must still work."""
+    v1 = self.env['product.product'].create({
+        'name': 'Exclude Me',
+        'default_code': 'EXCL',
+    })
+    v2 = self.env['product.product'].create({'name': 'Keep Me'})
+    result = self.env['product.product'].search([
+        ('display_name', 'not ilike', 'Exclude'),
+    ])
+    self.assertNotIn(v1, result)
+    self.assertIn(v2, result)
+
+def test_search_display_name_archived_not_leaked(self):
+    """Archived products must not appear in positive operator searches."""
+    variant = self.env['product.product'].create({
+        'name': 'Archived Product',
+        'default_code': 'ARCH_SKU',
+        'active': False,
+    })
+    result = self.env['product.product'].search([
+        ('display_name', 'ilike', 'ARCH_SKU'),
+    ])
+    self.assertNotIn(variant, result)
+
+def test_template_search_display_name_via_variant(self):
+    """product.template search should find template matched by variant default_code."""
+    template = self.env['product.template'].create({'name': 'Template A'})
+    template.product_variant_ids[0].default_code = 'TMPL_SKU'
+    result = self.env['product.template'].with_context(
+        search_product_product=True
+    ).search([
+        ('display_name', 'ilike', 'TMPL_SKU'),
+    ])
+    self.assertIn(template, result)
