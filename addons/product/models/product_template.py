@@ -648,10 +648,11 @@ class ProductTemplate(models.Model):
             if operator in Domain.NEGATIVE_OPERATORS:
                 domain = Domain.AND([domain, [('product_variant_ids', operator, value)]])
             else:
+                self_no_active_test = self.with_context(active_test=False)
                 query = SQL(
                     """((%s) UNION ALL (%s))""",
-                    self._search(domain).select(),
-                    self._search([("product_variant_ids", operator, value)]).select(),
+                    self_no_active_test._search(domain).select(),
+                    self_no_active_test._search([("product_variant_ids", operator, value)]).select(),
                 )
                 domain = [('id', 'in', query)]
         return domain
